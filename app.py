@@ -7,13 +7,17 @@ app = Flask(__name__)
 def init_db():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
+    # Apaga a tabela antiga se existir e recria com a estrutura atualizada
+    cursor.execute('DROP TABLE IF EXISTS chamado;')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS chamado (
+        CREATE TABLE chamado (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             titulo TEXT NOT NULL,
             descricao TEXT NOT NULL,
+            solicitante TEXT NOT NULL,
             status TEXT DEFAULT 'Aberto',
-            tecnico TEXT DEFAULT 'Não atribuído'
+            tecnico TEXT DEFAULT 'Não atribuído',
+            resolucao TEXT DEFAULT ''
         )
     ''')
     conn.commit()
@@ -21,9 +25,10 @@ def init_db():
 
 @app.route('/')
 def index():
+    init_db() # Garante que a tabela está pronta ao carregar a página
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT id, titulo, descricao, status, tecnico FROM chamado')
+    cursor.execute('SELECT id, titulo, descricao, solicitante, status, tecnico, resolucao FROM chamado')
     chamados = cursor.fetchall()
     conn.close()
     return render_template('index.html', chamados=chamados)
@@ -33,26 +38,35 @@ def novo_chamado():
     if request.method == 'POST':
         titulo = request.form['titulo']
         descricao = request.form['descricao']
+        solicitante = request.form['solicitante']
         
         conn = sqlite3.connect('database.db')
         cursor = conn.cursor()
-        cursor.execute('INSERT INTO chamado (titulo, descricao) VALUES (?, ?)', (titulo, descricao))
+        cursor.execute('INSERT INTO chamado (titulo, descricao, solicitante) VALUES (?, ?, ?)', (titulo, descricao, solicitante))
         conn.commit()
         conn.close()
         return redirect(url_for('index'))
     return render_template('novo_chamado.html')
 
-@app.route('/fechar/<int:id>')
+@app.route('/fechar/<int:id>', methods=('GET', 'POST'))
 def fechar_chamado(id):
+    if request.method == 'POST':
+        resolucao = request.form['resolucao']
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute("UPDATE chamado SET status = 'Fechado', resolucao = ? WHERE id = ?", (resolucao, id))
+        conn.commit()
+        conn.close()
+        return redirect(url_for('index'))
+    
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
-    cursor.execute("UPDATE chamado SET status = 'Fechado' WHERE id = ?", (id,))
-    conn.commit()
+    cursor.execute('SELECT id, titulo, descricao, solicitante FROM chamado WHERE id = ?', (id,))
+    chamado = cursor.fetchone()
     conn.close()
-    return redirect(url_for('index'))
+    return render_template('fechar_chamado.html', chamado=chamado)
 
 if __name__ == '__main__':
     init_db()
-    # Porta dinâmica para o Render e Flask local
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
