@@ -7,10 +7,9 @@ app = Flask(__name__)
 def init_db():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
-    # Apaga a tabela antiga se existir e recria com a estrutura atualizada
-    cursor.execute('DROP TABLE IF EXISTS chamado;')
+    # Cria a tabela apenas se não existir (sem apagar dados anteriores)
     cursor.execute('''
-        CREATE TABLE chamado (
+        CREATE TABLE IF NOT EXISTS chamado (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             titulo TEXT NOT NULL,
             descricao TEXT NOT NULL,
@@ -23,9 +22,11 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Executa a inicialização ao carregar o aplicativo
+init_db()
+
 @app.route('/')
 def index():
-    init_db() # Garante que a tabela está pronta ao carregar a página
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
     cursor.execute('SELECT id, titulo, descricao, solicitante, status, tecnico, resolucao FROM chamado')
@@ -67,6 +68,5 @@ def fechar_chamado(id):
     return render_template('fechar_chamado.html', chamado=chamado)
 
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
